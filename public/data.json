@@ -1,0 +1,164 @@
+{
+    "taches": [
+        {
+            "id": 101,
+            "title": "1. Fonctionnalités",
+            "description": "",
+            "date_creation": "2026-01-01",
+            "date_echeance": "2026-03-01",
+            "etat": "Reussi",
+            "equipiers": [
+                {
+                    "name": "Paul"
+                }
+            ]
+        },
+        {
+            "id": 102,
+            "title": "2. Etude de marché",
+            "description": "",
+            "date_creation": "2026-01-02",
+            "date_echeance": "2026-04-01",
+            "etat": "Abandoné",
+            "equipiers": []
+        },
+        {
+            "id": 103,
+            "title": "3. Wireframes",
+            "description": "",
+            "date_creation": "2026-01-01",
+            "date_echeance": "2026-03-17",
+            "etat": "En attente",
+            "equipiers": []
+        },
+        {
+            "id": 104,
+            "title": "4. Design",
+            "description": "",
+            "date_creation": "2026-01-01",
+            "date_echeance": "2026-03-18",
+            "etat": "Nouveau",
+            "equipiers": []
+        },
+        {
+            "id": 105,
+            "title": "5. Landing Page",
+            "description": "",
+            "date_creation": "2026-01-05",
+            "date_echeance": "2026-03-13",
+            "etat": "Nouveau"
+        },
+        {
+            "id": 106,
+            "title": "6. Développement",
+            "description": "",
+            "date_creation": "2026-01-05",
+            "date_echeance": "2026-03-28",
+            "etat": "En attente"
+        },
+        {
+            "id": 107,
+            "title": "7. Publication / Déploiement",
+            "description": "",
+            "date_creation": "2026-01-06",
+            "date_echeance": "2026-03-27",
+            "etat": "Nouveau",
+            "equipiers": [
+                {
+                    "name": "MyStore"
+                },
+                {
+                    "name": "Bob"
+                }
+            ]
+        },
+        {
+            "id": 108,
+            "title": "8. Marketing",
+            "description": "",
+            "date_creation": "2026-03-10",
+            "date_echeance": "2026-05-01",
+            "etat": "Nouveau",
+            "equipiers": []
+        },
+        {
+            "id": 109,
+            "title": "9. Feedbacks",
+            "description": "",
+            "date_creation": "2026-03-01",
+            "date_echeance": "2026-05-01",
+            "etat": "Nouveau",
+            "equipiers": []
+        }
+    ],
+    "dossiers": [
+        {
+            "id": 201,
+            "title": "Marketing",
+            "description": "",
+            "color": "orange",
+            "icon": "",
+            "type": ""
+        },
+        {
+            "id": 202,
+            "title": "Dev",
+            "description": "",
+            "color": "pink",
+            "icon": ""
+        },
+        {
+            "id": 203,
+            "title": "Autre",
+            "description": "",
+            "color": "bluesky",
+            "icon": ""
+        },
+        {
+            "id": 204,
+            "title": "Projet ToDo-List",
+            "description": "",
+            "color": "green",
+            "icon": "project",
+            "type": "project"
+        }
+    ],
+    "relations": [
+        {
+            "tache": 102,
+            "dossier": 201
+        },
+        {
+            "tache": 108,
+            "dossier": 201
+        },
+        {
+            "tache": 109,
+            "dossier": 203
+        },
+        {
+            "tache": 105,
+            "dossier": 202
+        },
+        {
+            "tache": 106,
+            "dossier": 202
+        },
+        {
+            "tache": 101,
+            "dossier": 204
+        },
+        {
+            "tache": 102,
+            "dossier": 204
+        },
+        {
+            "tache": 102,
+            "dossier": 202
+        },
+        {
+            "tache": 102,
+            "dossier": 203
+        }
+    ]
+}
