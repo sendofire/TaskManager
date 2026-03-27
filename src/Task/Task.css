@@ -1,0 +1,41 @@
+.Task-modal-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.55);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	z-index: 1000;
+}
+
+.Task-modal {
+	width: 100%;
+	max-width: 500px;
+	background: #ffffff;
+	border-radius: 12px;
+	padding: 20px;
+	color: #111;
+	box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+}
+
+.Task-modal-form {
+	display: grid;
+	gap: 10px;
+}
+
+.Task-modal-form input,
+.Task-modal-form select {
+	width: 100%;
+	padding: 10px 12px;
+	border: 1px solid #d8d8d8;
+	border-radius: 8px;
+	font-size: 14px;
+}
+
+.Task-modal-actions {
+	display: flex;
+	gap: 10px;
+	justify-content: flex-end;
+	margin-top: 6px;
+}
