@@ -1,7 +1,9 @@
 import './Task.css';
 import { useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'taskmanager.taches';
+const STORAGE_TASKS_KEY = 'taskmanager.taches';
+const STORAGE_DOSSIERS_KEY = 'taskmanager.dossiers';
+const STORAGE_RELATIONS_KEY = 'taskmanager.relations';
 
 export const ETATS = {
     NOUVEAU: 'Nouveau',
@@ -15,11 +17,117 @@ export const ETAT_TERMINE = [
     ETATS.ABANDONNE,
 ]
 
+function normalizeEtat(etat) {
+    return (etat || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+}
+
+function normalizeText(value) {
+    return (value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+function getDateEcheanceValue(tache) {
+    if (!tache.date_echeance) {
+        return Number.NEGATIVE_INFINITY;
+    }
+
+    const dateValue = new Date(tache.date_echeance).getTime();
+    return Number.isNaN(dateValue) ? Number.NEGATIVE_INFINITY : dateValue;
+}
+
+function buildSimpleModeTasks(tasks) {
+    const doneStates = new Set([
+        ...ETAT_TERMINE.map((etat) => normalizeEtat(etat)),
+        'reussi',
+        'abandone',
+    ]);
+
+    const nonFinishedTasks = tasks.filter((tache) => {
+        return !doneStates.has(normalizeEtat(tache.etat));
+    });
+
+    const sortedTasks = [...nonFinishedTasks].sort((a, b) => {
+        return getDateEcheanceValue(b) - getDateEcheanceValue(a);
+    });
+
+    const enCoursTasks = sortedTasks.filter((tache) => {
+        return normalizeEtat(tache.etat) === normalizeEtat(ETATS.EN_COURS);
+    });
+
+    const otherTasks = sortedTasks.filter((tache) => {
+        return normalizeEtat(tache.etat) !== normalizeEtat(ETATS.EN_COURS);
+    });
+
+    return {
+        enCoursTasks,
+        otherTasks,
+        flattened: [...enCoursTasks, ...otherTasks],
+    };
+}
+
+function buildDossiersByTask(dossiers, relations) {
+    const dossierTitleById = new Map();
+    dossiers.forEach((dossier) => {
+        dossierTitleById.set(dossier.id, dossier.title || 'Sans nom');
+    });
+
+    const dossierTitlesByTask = new Map();
+    const dossierIdsByTask = new Map();
+    relations.forEach((relation) => {
+        const taskId = relation.tache;
+        const dossierTitle = dossierTitleById.get(relation.dossier);
+
+        if (!taskId || !dossierTitle) {
+            return;
+        }
+
+        const existingTitles = dossierTitlesByTask.get(taskId) || [];
+        const existingIds = dossierIdsByTask.get(taskId) || [];
+
+        dossierTitlesByTask.set(taskId, [...existingTitles, dossierTitle]);
+        dossierIdsByTask.set(taskId, [...existingIds, relation.dossier]);
+    });
+
+    return {
+        dossierTitlesByTask,
+        dossierIdsByTask,
+    };
+}
+
+function enrichTasksWithDossiers(tasks, dossiersByTask) {
+    return tasks.map((task) => {
+        const relationTitles = dossiersByTask.dossierTitlesByTask.get(task.id) || [];
+        const relationIds = dossiersByTask.dossierIdsByTask.get(task.id) || [];
+        const existingTitles = Array.isArray(task.dossiers) ? task.dossiers : [];
+        const existingIds = Array.isArray(task.dossierIds) ? task.dossierIds : [];
+        const mergedTitles = relationTitles.length > 0 ? relationTitles : existingTitles;
+        const mergedIds = relationIds.length > 0 ? relationIds : existingIds;
+
+        return {
+            ...task,
+            dossiers: mergedTitles,
+            dossierIds: mergedIds,
+        };
+    });
+}
+
 function Task() {
     const [isDateFilterActive, setIsDateFilterActive] = useState(false);
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+    const [nameFilterInput, setNameFilterInput] = useState('');
+    const [showDossierFilterPanel, setShowDossierFilterPanel] = useState(false);
+    const [selectedDossierFilterIds, setSelectedDossierFilterIds] = useState([]);
+    const [includeNoDossierFilter, setIncludeNoDossierFilter] = useState(false);
     const [taches, setTasks] = useState([]);
     const [allTasks, setAllTasks] = useState([]);
+    const [allDossiers, setAllDossiers] = useState([]);
+    const [allRelations, setAllRelations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [newTask, setNewTask] = useState({
@@ -27,29 +135,45 @@ function Task() {
         description: '',
         date_echeance: '',
         etat: ETATS.NOUVEAU,
+        dossierIds: [],
     });
 
     useEffect(() => {
         async function loadTasks() {
             try {
-                const storedTasks = localStorage.getItem(STORAGE_KEY);
-
-                if (storedTasks) {
-                    const parsed = JSON.parse(storedTasks);
-                    setTasks(parsed);
-                    setAllTasks(parsed);
-                    return;
-                }
-
                 const response = await fetch('/data.json');
                 if (!response.ok) {
                     throw new Error('Impossible de charger le fichier JSON');
                 }
 
                 const data = await response.json();
+                const storedTasks = localStorage.getItem(STORAGE_TASKS_KEY);
+                const storedDossiers = localStorage.getItem(STORAGE_DOSSIERS_KEY);
+                const storedRelations = localStorage.getItem(STORAGE_RELATIONS_KEY);
+
+                const loadedDossiers = storedDossiers
+                    ? JSON.parse(storedDossiers)
+                    : (Array.isArray(data.dossiers) ? data.dossiers : []);
+                const loadedRelations = storedRelations
+                    ? JSON.parse(storedRelations)
+                    : (Array.isArray(data.relations) ? data.relations : []);
+
+                setAllDossiers(loadedDossiers);
+                setAllRelations(loadedRelations);
+
+                const dossiersByTask = buildDossiersByTask(loadedDossiers, loadedRelations);
+
+                if (storedTasks) {
+                    const parsed = JSON.parse(storedTasks);
+                    const enrichedStoredTasks = enrichTasksWithDossiers(parsed, dossiersByTask);
+                    setTasks(buildSimpleModeTasks(enrichedStoredTasks).flattened);
+                    setAllTasks(enrichedStoredTasks);
+                    return;
+                }
                 const loadedTasks = data.taches || [];
-                setTasks(loadedTasks);
-                setAllTasks(loadedTasks);
+                const enrichedLoadedTasks = enrichTasksWithDossiers(loadedTasks, dossiersByTask);
+                setTasks(buildSimpleModeTasks(enrichedLoadedTasks).flattened);
+                setAllTasks(enrichedLoadedTasks);
             } catch (err) {
                 setError(err.message || 'Erreur inconnue');
             } finally {
@@ -62,9 +186,21 @@ function Task() {
 
     useEffect(() => {
         if (!loading) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(allTasks));
+            localStorage.setItem(STORAGE_TASKS_KEY, JSON.stringify(allTasks));
         }
     }, [allTasks, loading]);
+
+    useEffect(() => {
+        if (!loading) {
+            localStorage.setItem(STORAGE_DOSSIERS_KEY, JSON.stringify(allDossiers));
+        }
+    }, [allDossiers, loading]);
+
+    useEffect(() => {
+        if (!loading) {
+            localStorage.setItem(STORAGE_RELATIONS_KEY, JSON.stringify(allRelations));
+        }
+    }, [allRelations, loading]);
 
 
     /*
@@ -107,13 +243,18 @@ function Task() {
     }
 
     function FilterNameTask() {
-        const sortedTasks = [...allTasks].sort((a, b) => {
-            const aTitle = (a.title || '').toLowerCase();
-            const bTitle = (b.title || '').toLowerCase();
-            return aTitle.localeCompare(bTitle);
+        const normalizedInput = normalizeText(nameFilterInput);
+
+        if (!normalizedInput) {
+            setTasks(buildSimpleModeTasks(allTasks).flattened);
+            return;
+        }
+
+        const filteredTasks = allTasks.filter((tache) => {
+            return normalizeText(tache.title) === normalizedInput;
         });
 
-        setTasks(sortedTasks);
+        setTasks(filteredTasks);
     }
 
     function FilterStateTask() {
@@ -127,7 +268,7 @@ function Task() {
     }
 
     function ResetFilter() {
-        setTasks(allTasks);
+        setTasks(buildSimpleModeTasks(allTasks).flattened);
         setIsDateFilterActive(false);
     }
 
@@ -137,6 +278,20 @@ function Task() {
             ...previous,
             [name]: value,
         }));
+    }
+
+    function toggleNewTaskDossier(dossierId) {
+        setNewTask((previous) => {
+            const previousIds = Array.isArray(previous.dossierIds) ? previous.dossierIds : [];
+            const exists = previousIds.includes(dossierId);
+
+            return {
+                ...previous,
+                dossierIds: exists
+                    ? previousIds.filter((id) => id !== dossierId)
+                    : [...previousIds, dossierId],
+            };
+        });
     }
 
     function AddTask(event) {
@@ -149,24 +304,41 @@ function Task() {
 
         setError('');
 
+        const selectedDossierIds = Array.isArray(newTask.dossierIds) ? newTask.dossierIds : [];
+        const selectedDossierTitles = allDossiers
+            .filter((dossier) => selectedDossierIds.includes(dossier.id))
+            .map((dossier) => dossier.title || 'Sans nom');
+
+        const newTaskId = Date.now();
+
         const createdTask = {
-            id: Date.now(),
+            id: newTaskId,
             title: newTask.title.trim(),
             description: newTask.description.trim(),
             date_creation: new Date().toISOString().split('T')[0],
             date_echeance: newTask.date_echeance,
             etat: newTask.etat,
+            dossiers: selectedDossierTitles,
+            dossierIds: selectedDossierIds,
         };
 
+        const createdRelations = selectedDossierIds.map((dossierId) => ({
+            tache: newTaskId,
+            dossier: dossierId,
+        }));
+
         const updatedTasks = [...allTasks, createdTask];
+        const updatedRelations = [...allRelations, ...createdRelations];
         setAllTasks(updatedTasks);
-        setTasks(updatedTasks);
+        setAllRelations(updatedRelations);
+        setTasks(buildSimpleModeTasks(updatedTasks).flattened);
 
         setNewTask({
             title: '',
             description: '',
             date_echeance: '',
             etat: ETATS.NOUVEAU,
+            dossierIds: [],
         });
 
         setShowAddTaskModal(false);
@@ -184,12 +356,77 @@ function Task() {
                 <button onClick={FilterdateTask} className='Button-filter'>
                     {isDateFilterActive ? 'Filtrer les tâches par dates d\'échéance croissantes' : 'Filtrer les tâches par dates d\'échéance décroissantes'}
                 </button>
+                <input
+                    type='text'
+                    value={nameFilterInput}
+                    onChange={(event) => setNameFilterInput(event.target.value)}
+                    placeholder='Nom exact de la tache'
+                />
                 <button onClick={FilterNameTask} className='Button-filter'>
-                    Filtrer les tâches par nom
+                    Rechercher par nom
                 </button>
                 <button onClick={FilterStateTask} className='Button-filter'>
                     Filtrer les tâches par état
                 </button>
+                <button
+                    onClick={() => setShowDossierFilterPanel((previous) => !previous)}
+                    className='Button-filter'
+                >
+                    Filtrer par dossier
+                </button>
+                {showDossierFilterPanel && (
+                    <div>
+                        <label>
+                            <input
+                                type='checkbox'
+                                checked={includeNoDossierFilter}
+                                onChange={(event) => setIncludeNoDossierFilter(event.target.checked)}
+                            />
+                            Sans dossier
+                        </label>
+                        {allDossiers.map((dossier) => (
+                            <label key={dossier.id}>
+                                <input
+                                    type='checkbox'
+                                    checked={selectedDossierFilterIds.includes(dossier.id)}
+                                    onChange={() => {
+                                        setSelectedDossierFilterIds((previous) => {
+                                            if (previous.includes(dossier.id)) {
+                                                return previous.filter((id) => id !== dossier.id);
+                                            }
+
+                                            return [...previous, dossier.id];
+                                        });
+                                    }}
+                                />
+                                {dossier.title}
+                            </label>
+                        ))}
+                        <button
+                            className='Button-filter'
+                            onClick={() => {
+                                const filteredTasks = allTasks.filter((task) => {
+                                    const taskDossierIds = Array.isArray(task.dossierIds) ? task.dossierIds : [];
+                                    const hasNoDossier = taskDossierIds.length === 0;
+
+                                    const matchNoDossier = includeNoDossierFilter && hasNoDossier;
+                                    const matchSelectedDossiers = selectedDossierFilterIds.length > 0
+                                        && selectedDossierFilterIds.some((selectedId) => taskDossierIds.includes(selectedId));
+
+                                    if (!includeNoDossierFilter && selectedDossierFilterIds.length === 0) {
+                                        return true;
+                                    }
+
+                                    return matchNoDossier || matchSelectedDossiers;
+                                });
+
+                                setTasks(filteredTasks);
+                            }}
+                        >
+                            Appliquer filtre dossier
+                        </button>
+                    </div>
+                )}
                 <button onClick={ResetFilter} className='Button-filter'>
                     Réinitialiser les filtres
                 </button>
@@ -205,6 +442,9 @@ function Task() {
                     <p>Creation: {tache.date_creation}</p>
                     <p>Echeance: {tache.date_echeance || 'Non definie'}</p>
                     <p>Etat: {tache.etat}</p>
+                    <p>
+                        Dossiers: {Array.isArray(tache.dossiers) && tache.dossiers.length > 0 ? tache.dossiers.join(', ') : 'Aucun'}
+                    </p>
                 </div>
             ))}
 
@@ -260,6 +500,21 @@ function Task() {
                                 <option value={ETATS.REUSSI}>{ETATS.REUSSI}</option>
                                 <option value={ETATS.ABANDONNE}>{ETATS.ABANDONNE}</option>
                             </select>
+
+                            <div>
+                                <p>Dossiers</p>
+                                {allDossiers.length === 0 && <p>Aucun dossier disponible</p>}
+                                {allDossiers.map((dossier) => (
+                                    <label key={dossier.id}>
+                                        <input
+                                            type='checkbox'
+                                            checked={newTask.dossierIds.includes(dossier.id)}
+                                            onChange={() => toggleNewTaskDossier(dossier.id)}
+                                        />
+                                        {dossier.title}
+                                    </label>
+                                ))}
+                            </div>
 
                             <div className='Task-modal-actions'>
                                 <button type='submit' className='Button-page'>
