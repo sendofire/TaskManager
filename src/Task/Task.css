@@ -1,7 +1,138 @@
+:root {
+	--tm-primary: #1d9543;
+	--tm-neon: #39ff14;
+	--tm-violet-main: #1f081f;
+	--tm-violet-soft: #2a1230;
+	--tm-bg-soft: #650754;
+	--tm-surface: #664674;
+	--tm-text: #9cff7a;
+	--tm-border: rgba(57, 255, 20, 0.35);
+	--tm-shadow: 0 10px 32px rgba(57, 255, 20, 0.18);
+}
+
+body {
+	background: var(--tm-violet-main);
+	color: var(--tm-text);
+	font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.Header-task {
+	width: min(1080px, 95%);
+	margin: 18px auto;
+	padding: 16px;
+	border-radius: 14px;
+	background: rgba(42, 18, 48, 0.88);
+	border: 1px solid var(--tm-border);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+	justify-content: center;
+	color: var(--tm-text);
+	box-shadow: var(--tm-shadow);
+}
+
+.Title-task {
+	flex-basis: 100%;
+	margin: 0;
+	font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+	color: var(--tm-neon);
+	text-shadow: 0 0 10px rgba(57, 255, 20, 0.35);
+}
+
+.Header-task p {
+	margin: 0;
+	font-size: 0.95rem;
+	padding: 7px 10px;
+	border-radius: 999px;
+	background: rgba(14, 18, 16, 0.72);
+	border: 1px solid var(--tm-border);
+}
+
+.Button-filter,
+.Button-page {
+	border: none;
+	padding: 9px 14px;
+	border-radius: 10px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.Button-filter {
+	background: var(--tm-violet-soft);
+	color: #f7fff8;
+	border: 1px solid rgba(57, 255, 20, 0.25);
+}
+
+.Button-page {
+	background: var(--tm-primary);
+	color: #f7fff8;
+	border: 1px solid rgba(57, 255, 20, 0.35);
+}
+
+.Button-filter:hover,
+.Button-page:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 0 0 2px rgba(57, 255, 20, 0.35), 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.Header-task input[type='text'],
+.Task-modal-form input,
+.Task-modal-form select {
+	min-height: 38px;
+	border: 1px solid var(--tm-border);
+	border-radius: 10px;
+	padding: 8px 10px;
+	outline: none;
+	font-size: 0.95rem;
+	color: var(--tm-text);
+	background: rgba(14, 18, 18, 0.55);
+}
+
+.Header-task input[type='text']:focus,
+.Task-modal-form input:focus,
+.Task-modal-form select:focus {
+	border-color: var(--tm-neon);
+	box-shadow: 0 0 0 3px rgba(57, 255, 20, 0.18);
+}
+
+.Task-card {
+	width: min(1080px, 95%);
+	margin: 12px auto;
+	padding: 14px 16px;
+	border-radius: 12px;
+	background: rgba(20, 10, 24, 0.35);
+	border-left: 3px solid var(--tm-neon);
+	border: 1px solid rgba(57, 255, 20, 0.45);
+	color: var(--tm-text);
+	text-align: left;
+	box-shadow: 0 0 0 1px rgba(57, 255, 20, 0.12);
+}
+
+.Title-card {
+	margin: 0 0 8px 0;
+	color: var(--tm-neon);
+	font-size: 1.08rem;
+}
+
+.Task-card p {
+	margin: 4px 0;
+	font-size: 0.94rem;
+	color: var(--tm-neon);
+}
+
+.Footer-task {
+	width: min(1080px, 95%);
+	margin: 16px auto 26px;
+	display: flex;
+	justify-content: center;
+}
+
 .Task-modal-overlay {
 	position: fixed;
 	inset: 0;
-	background: rgba(0, 0, 0, 0.55);
+	background: rgba(24, 6, 30, 0.78);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -10,13 +141,19 @@
 }
 
 .Task-modal {
-	width: 100%;
-	max-width: 500px;
-	background: #ffffff;
-	border-radius: 12px;
-	padding: 20px;
-	color: #111;
-	box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+	width: min(520px, 100%);
+	background: rgba(43, 14, 49, 0.98);
+	border: 1px solid var(--tm-border);
+	border-radius: 14px;
+	padding: 18px;
+	color: var(--tm-text);
+	box-shadow: 0 22px 46px rgba(0, 0, 0, 0.35);
+}
+
+.Task-modal h3 {
+	margin-top: 0;
+	margin-bottom: 10px;
+	color: var(--tm-neon);
 }
 
 .Task-modal-form {
@@ -24,18 +161,31 @@
 	gap: 10px;
 }
 
-.Task-modal-form input,
-.Task-modal-form select {
-	width: 100%;
-	padding: 10px 12px;
-	border: 1px solid #d8d8d8;
-	border-radius: 8px;
-	font-size: 14px;
+.Task-modal-form label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 0.92rem;
 }
 
 .Task-modal-actions {
 	display: flex;
-	gap: 10px;
 	justify-content: flex-end;
+	gap: 10px;
 	margin-top: 6px;
+}
+
+@media (max-width: 768px) {
+	.Header-task {
+		padding: 14px;
+	}
+
+	.Button-filter,
+	.Button-page {
+		width: 100%;
+	}
+
+	.Header-task input[type='text'] {
+		width: 100%;
+	}
 }

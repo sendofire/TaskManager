@@ -41,7 +41,22 @@ function getDateEcheanceValue(tache) {
     return Number.isNaN(dateValue) ? Number.NEGATIVE_INFINITY : dateValue;
 }
 
-function buildSimpleModeTasks(tasks) {
+function sortEnCoursFirst(tasks) {
+    const enCoursTasks = [];
+    const otherTasks = [];
+
+    tasks.forEach((tache) => {
+        if (normalizeEtat(tache.etat) === normalizeEtat(ETATS.EN_COURS)) {
+            enCoursTasks.push(tache);
+        } else {
+            otherTasks.push(tache);
+        }
+    });
+
+    return [...enCoursTasks, ...otherTasks];
+}
+
+function getDefaultVisibleTasks(tasks) {
     const doneStates = new Set([
         ...ETAT_TERMINE.map((etat) => normalizeEtat(etat)),
         'reussi',
@@ -56,19 +71,11 @@ function buildSimpleModeTasks(tasks) {
         return getDateEcheanceValue(b) - getDateEcheanceValue(a);
     });
 
-    const enCoursTasks = sortedTasks.filter((tache) => {
-        return normalizeEtat(tache.etat) === normalizeEtat(ETATS.EN_COURS);
-    });
+    return sortEnCoursFirst(sortedTasks);
+}
 
-    const otherTasks = sortedTasks.filter((tache) => {
-        return normalizeEtat(tache.etat) !== normalizeEtat(ETATS.EN_COURS);
-    });
-
-    return {
-        enCoursTasks,
-        otherTasks,
-        flattened: [...enCoursTasks, ...otherTasks],
-    };
+function getNonFinishedCount(tasks) {
+    return getDefaultVisibleTasks(tasks).length;
 }
 
 function buildDossiersByTask(dossiers, relations) {
@@ -122,8 +129,11 @@ function Task() {
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
     const [nameFilterInput, setNameFilterInput] = useState('');
     const [showDossierFilterPanel, setShowDossierFilterPanel] = useState(false);
+    const [showEtatFilterPanel, setShowEtatFilterPanel] = useState(false);
     const [selectedDossierFilterIds, setSelectedDossierFilterIds] = useState([]);
+    const [selectedEtatFilterValues, setSelectedEtatFilterValues] = useState([]);
     const [includeNoDossierFilter, setIncludeNoDossierFilter] = useState(false);
+    const [includeNoEtatFilter, setIncludeNoEtatFilter] = useState(false);
     const [taches, setTasks] = useState([]);
     const [allTasks, setAllTasks] = useState([]);
     const [allDossiers, setAllDossiers] = useState([]);
@@ -137,6 +147,9 @@ function Task() {
         etat: ETATS.NOUVEAU,
         dossierIds: [],
     });
+
+    const totalTaskCount = allTasks.length;
+    const nonFinishedTaskCount = getNonFinishedCount(allTasks);
 
     useEffect(() => {
         async function loadTasks() {
@@ -166,13 +179,13 @@ function Task() {
                 if (storedTasks) {
                     const parsed = JSON.parse(storedTasks);
                     const enrichedStoredTasks = enrichTasksWithDossiers(parsed, dossiersByTask);
-                    setTasks(buildSimpleModeTasks(enrichedStoredTasks).flattened);
+                    setTasks(getDefaultVisibleTasks(enrichedStoredTasks));
                     setAllTasks(enrichedStoredTasks);
                     return;
                 }
                 const loadedTasks = data.taches || [];
                 const enrichedLoadedTasks = enrichTasksWithDossiers(loadedTasks, dossiersByTask);
-                setTasks(buildSimpleModeTasks(enrichedLoadedTasks).flattened);
+                setTasks(getDefaultVisibleTasks(enrichedLoadedTasks));
                 setAllTasks(enrichedLoadedTasks);
             } catch (err) {
                 setError(err.message || 'Erreur inconnue');
@@ -187,20 +200,10 @@ function Task() {
     useEffect(() => {
         if (!loading) {
             localStorage.setItem(STORAGE_TASKS_KEY, JSON.stringify(allTasks));
-        }
-    }, [allTasks, loading]);
-
-    useEffect(() => {
-        if (!loading) {
             localStorage.setItem(STORAGE_DOSSIERS_KEY, JSON.stringify(allDossiers));
-        }
-    }, [allDossiers, loading]);
-
-    useEffect(() => {
-        if (!loading) {
             localStorage.setItem(STORAGE_RELATIONS_KEY, JSON.stringify(allRelations));
         }
-    }, [allRelations, loading]);
+    }, [allTasks, allDossiers, allRelations, loading]);
 
 
     /*
@@ -210,20 +213,7 @@ function Task() {
     * - réinitialisation des filtres
     */
     function FilterStateInWorkTask() {
-        setTasks((previousTasks) => {
-            const enCoursTasks = [];
-            const otherTasks = [];
-
-            previousTasks.forEach((tache) => {
-                if ((tache.etat || '').toLowerCase() === ETATS.EN_COURS.toLowerCase()) {
-                    enCoursTasks.push(tache);
-                } else {
-                    otherTasks.push(tache);
-                }
-            });
-
-            return [...enCoursTasks, ...otherTasks];
-        });
+        setTasks((previousTasks) => sortEnCoursFirst(previousTasks));
     }
 
     function FilterdateTask() {
@@ -246,7 +236,7 @@ function Task() {
         const normalizedInput = normalizeText(nameFilterInput);
 
         if (!normalizedInput) {
-            setTasks(buildSimpleModeTasks(allTasks).flattened);
+            setTasks(getDefaultVisibleTasks(allTasks));
             return;
         }
 
@@ -257,19 +247,70 @@ function Task() {
         setTasks(filteredTasks);
     }
 
-    function FilterStateTask() {
-        const sortedTasks = [...allTasks].sort((a, b) => {
-            const aEtat = (a.etat || '').toLowerCase();
-            const bEtat = (b.etat || '').toLowerCase();
-            return aEtat.localeCompare(bEtat);
+    function applyEtatFilter() {
+        const normalizedSelectedEtats = selectedEtatFilterValues.map((etat) => normalizeEtat(etat));
+
+        if (!includeNoEtatFilter && normalizedSelectedEtats.length === 0) {
+            setTasks(allTasks);
+            return;
+        }
+
+        const prioritizedTasks = [];
+        const otherTasks = [];
+
+        allTasks.forEach((task) => {
+            const taskEtat = normalizeEtat(task.etat);
+            const hasNoEtat = !taskEtat;
+            const matchNoEtat = includeNoEtatFilter && hasNoEtat;
+            const matchSelectedEtat = normalizedSelectedEtats.includes(taskEtat);
+
+            if (matchNoEtat || matchSelectedEtat) {
+                prioritizedTasks.push(task);
+            } else {
+                otherTasks.push(task);
+            }
         });
 
-        setTasks(sortedTasks);
+        setTasks([...prioritizedTasks, ...otherTasks]);
     }
 
     function ResetFilter() {
-        setTasks(buildSimpleModeTasks(allTasks).flattened);
+        setTasks(getDefaultVisibleTasks(allTasks));
         setIsDateFilterActive(false);
+        setNameFilterInput('');
+        setSelectedDossierFilterIds([]);
+        setIncludeNoDossierFilter(false);
+        setSelectedEtatFilterValues([]);
+        setIncludeNoEtatFilter(false);
+    }
+
+    function toggleEtatFilter(etatValue) {
+        setSelectedEtatFilterValues((previous) => {
+            if (previous.includes(etatValue)) {
+                return previous.filter((value) => value !== etatValue);
+            }
+
+            return [...previous, etatValue];
+        });
+    }
+
+    function applyDossierFilter() {
+        const filteredTasks = allTasks.filter((task) => {
+            const taskDossierIds = Array.isArray(task.dossierIds) ? task.dossierIds : [];
+            const hasNoDossier = taskDossierIds.length === 0;
+
+            const matchNoDossier = includeNoDossierFilter && hasNoDossier;
+            const matchSelectedDossiers = selectedDossierFilterIds.length > 0
+                && selectedDossierFilterIds.some((selectedId) => taskDossierIds.includes(selectedId));
+
+            if (!includeNoDossierFilter && selectedDossierFilterIds.length === 0) {
+                return true;
+            }
+
+            return matchNoDossier || matchSelectedDossiers;
+        });
+
+        setTasks(filteredTasks);
     }
 
     function handleInputChange(event) {
@@ -331,7 +372,7 @@ function Task() {
         const updatedRelations = [...allRelations, ...createdRelations];
         setAllTasks(updatedTasks);
         setAllRelations(updatedRelations);
-        setTasks(buildSimpleModeTasks(updatedTasks).flattened);
+        setTasks(getDefaultVisibleTasks(updatedTasks));
 
         setNewTask({
             title: '',
@@ -350,6 +391,8 @@ function Task() {
 
                 {/* ensemble des boutons de filtrage et de réinitialisation des filtres */}
                 <h1 className='Title-task'>Liste des tâches</h1>
+                <p>Total des tâches: {totalTaskCount}</p>
+                <p>Tâches non finies: {nonFinishedTaskCount}</p>
                 <button onClick={FilterStateInWorkTask} className='Button-filter'>
                     Filtrer les tâches en cours
                 </button>
@@ -365,9 +408,40 @@ function Task() {
                 <button onClick={FilterNameTask} className='Button-filter'>
                     Rechercher par nom
                 </button>
-                <button onClick={FilterStateTask} className='Button-filter'>
-                    Filtrer les tâches par état
+                <button
+                    onClick={() => setShowEtatFilterPanel((previous) => !previous)}
+                    className='Button-filter'
+                >
+                    Filtrer par état
                 </button>
+                {showEtatFilterPanel && (
+                    <div>
+                        <label>
+                            <input
+                                type='checkbox'
+                                checked={includeNoEtatFilter}
+                                onChange={(event) => setIncludeNoEtatFilter(event.target.checked)}
+                            />
+                            Sans état
+                        </label>
+                        {Object.values(ETATS).map((etat) => (
+                            <label key={etat}>
+                                <input
+                                    type='checkbox'
+                                    checked={selectedEtatFilterValues.includes(etat)}
+                                    onChange={() => toggleEtatFilter(etat)}
+                                />
+                                {etat}
+                            </label>
+                        ))}
+                        <button
+                            className='Button-filter'
+                            onClick={applyEtatFilter}
+                        >
+                            Mettre en avant les états choisis
+                        </button>
+                    </div>
+                )}
                 <button
                     onClick={() => setShowDossierFilterPanel((previous) => !previous)}
                     className='Button-filter'
@@ -404,24 +478,7 @@ function Task() {
                         ))}
                         <button
                             className='Button-filter'
-                            onClick={() => {
-                                const filteredTasks = allTasks.filter((task) => {
-                                    const taskDossierIds = Array.isArray(task.dossierIds) ? task.dossierIds : [];
-                                    const hasNoDossier = taskDossierIds.length === 0;
-
-                                    const matchNoDossier = includeNoDossierFilter && hasNoDossier;
-                                    const matchSelectedDossiers = selectedDossierFilterIds.length > 0
-                                        && selectedDossierFilterIds.some((selectedId) => taskDossierIds.includes(selectedId));
-
-                                    if (!includeNoDossierFilter && selectedDossierFilterIds.length === 0) {
-                                        return true;
-                                    }
-
-                                    return matchNoDossier || matchSelectedDossiers;
-                                });
-
-                                setTasks(filteredTasks);
-                            }}
+                            onClick={applyDossierFilter}
                         >
                             Appliquer filtre dossier
                         </button>
